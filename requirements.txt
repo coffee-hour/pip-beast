@@ -1,3 +1,5 @@
 torch>=2.7
 numpy>=1.26
 safetensors>=0.4
+# web_ui.py uses only the Python standard library (http.server); no extra packages.
+# Optional: bitsandbytes (for --use_8bit_adam), wandb (for --wandb).
