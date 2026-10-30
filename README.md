@@ -19,7 +19,7 @@ Note: the beast count is about 1.04B with tied embeddings. The untied count is a
 - Attention via scaled_dot_product_attention (FlashAttention kernels on supported GPUs)
 - KV cache for generation (see below)
 
-Satellites (rule-based, no extra weights) sit around the core: router, thalamus, endocrine, hippocampus, specialists, critic, dream (offline consolidation), orchestrator. See satellites/.
+Satellites (rule-based, no extra weights) sit around the core: router, hippocampus, specialists, critic, dream (offline consolidation), orchestrator. See satellites/. Experimental work, including the feelings and chemistry satellites, lives in the separate private repo pip-future.
 
 ## Quick start
 
@@ -74,7 +74,7 @@ Generation uses a KV cache: each new token runs one forward step against cached 
 The UI is a single page (web/index.html) served by web_ui.py, which uses only the Python standard library (http.server, no extra packages). Tokens stream over Server-Sent Events. The page has:
 - temperature, top-k, and max-token sliders (these apply to the core model)
 - a satellites toggle
-- reset, which clears the conversation and satellite hormone state
+- reset, which clears the conversation
 
 Satellite replies are produced whole by the orchestrator, then shown in chunks, so they do not stream token by token. The web UI serializes generation with one lock because there is one model on one GPU.
 
@@ -82,7 +82,7 @@ The UI loads JetBrains Mono from Google Fonts. Without network access it falls b
 
 ## Chat and satellites
 
-chat.py runs in any terminal. Commands: /quit, /reset (clear hormone state), /core and /sat (toggle the satellite layer).
+chat.py runs in any terminal. Commands: /quit, /reset (clear conversation), /core and /sat (toggle the satellite layer).
 
 To consolidate episodic memory between sessions:
 
@@ -98,7 +98,7 @@ To consolidate episodic memory between sessions:
 - tokenizer.py: byte-level BPE (copied from Pip) and BeastTokenizer wrapper
 - prepare_data.py: builds tokenizer and token bins
 - chat.py: terminal chat
-- satellites/: router, thalamus, endocrine, hippocampus, specialists, critic, dream, orchestrator
+- satellites/: router, hippocampus, specialists, critic, dream, orchestrator
 - setup.sh, run.sh: one-shot setup and runner
 - requirements.txt: torch, numpy, safetensors (web UI adds nothing)
 
@@ -106,5 +106,4 @@ To consolidate episodic memory between sessions:
 
 - checkpoints/ and data/*.bin are generated locally and should not be committed.
 - Satellites are heuristics (keyword routing, lexicon sentiment). Treat them as a first pass.
-- The hormone model is a sampling control signal, not a claim about biology.
 - The models are not pretrained. You need your own data to train them, and output quality depends on that data and training time.
