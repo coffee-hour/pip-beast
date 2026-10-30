@@ -1,8 +1,8 @@
 """Orchestrator: wires the satellites to Pip-Beast. The model code is not modified.
 
 Flow per turn:
-  router -> thalamus -> endocrine (tick) -> hippocampus recall -> specialist (if routed)
-  -> generate with hormone-shaped sampling -> critic (one cooler retry) -> hippocampus store
+  router -> hippocampus recall -> specialist (if routed)
+  -> generate with fixed sampling -> critic (one cooler retry) -> hippocampus store
 
 Usage (repo root):
     from model import PipBeast  # via generate.load_checkpoint
@@ -16,9 +16,11 @@ Usage (repo root):
 import torch
 
 from generate import complete
-from satellites import critic, router, specialists, thalamus
-from satellites.endocrine import Endocrine
+from satellites import critic, router, specialists
 from satellites.hippocampus import Hippocampus
+
+BASE_TEMP = 0.8
+BASE_TOP_K = 40
 
 
 class Orchestrator:
@@ -26,7 +28,6 @@ class Orchestrator:
         self.model = model
         self.tok = tok
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-        self.endo = Endocrine()
         self.hip = Hippocampus(memory_path)
         self.max_new_tokens = max_new_tokens
 
@@ -43,9 +44,7 @@ class Orchestrator:
 
     def respond(self, user_text: str) -> str:
         route = router.classify(user_text)
-        stim = thalamus.perceive(user_text)
-        self.endo.tick(stim.valence, stim.arousal, stim.threat)
-        temp, top_k = self.endo.sampling()
+        temp, top_k = BASE_TEMP, BASE_TOP_K
 
         memories = self.hip.recall(user_text, k=2)
         note = self._specialist_note(route, user_text)
@@ -66,5 +65,5 @@ class Orchestrator:
             if critic.evaluate(retry).score > verdict.score:
                 reply = retry
 
-        self.hip.store(f'User: {user_text} | Pip: {reply}', salience=stim.arousal)
+        self.hip.store(f'User: {user_text} | Pip: {reply}')
         return reply

@@ -10,7 +10,7 @@ Routes:
     POST /api/chat          {message, temperature, top_k, max_new_tokens} -> text/event-stream
                             events: token {text}, done {satellites}, error {message}
     POST /api/satellites    {enabled: bool}
-    POST /api/reset         clear conversation history and satellite hormone state
+    POST /api/reset         clear conversation history
 """
 import argparse
 import json
@@ -124,12 +124,6 @@ class Handler(BaseHTTPRequestHandler):
         s = self.session
         with s.lock:
             s.history = ''
-            if s.orch is not None:
-                try:
-                    from satellites.endocrine import BASELINE
-                    s.orch.endo.levels = dict(BASELINE)
-                except Exception:
-                    pass
         return self._send_json(200, {'ok': True})
 
     def _chat(self, body):

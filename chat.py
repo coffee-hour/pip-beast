@@ -4,7 +4,7 @@
     python chat.py --core               # pure Pip-Beast, no satellites
     python chat.py --ckpt checkpoints/best.pt --tokenizer data/tokenizer.json
 
-In chat: /quit to exit, /reset to clear the hormone state, /core and /sat to toggle the layer.
+In chat: /quit to exit, /reset to clear the conversation, /core and /sat to toggle the layer.
 """
 import argparse
 import os
@@ -74,10 +74,6 @@ def main():
             break
         if line == '/reset':
             history = ''
-            if orch:
-                orch.endo.levels = dict(orch.endo.levels)
-                from satellites.endocrine import BASELINE
-                orch.endo.levels = dict(BASELINE)
             print(paint('state cleared', DIM))
             continue
         if line == '/core':
