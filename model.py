@@ -1,7 +1,14 @@
-"""Pip-Beast: standalone decoder-only transformer (~1.11B params). Pure PyTorch.
+"""Pip-Beast: standalone decoder-only transformer. Pure PyTorch.
 
 RMSNorm, RoPE, grouped-query attention via scaled_dot_product_attention (FlashAttention
 kernels are used automatically on supported GPUs), SwiGLU FFN, tied input/output embeddings.
+
+Presets (see PRESETS):
+    fast   ~222M params: 16 layers, dim 1024, 8 query heads, 4 KV heads, SwiGLU hidden 2816
+    beast  ~1.04B params: 22 layers, dim 2048, 16 query heads, 4 KV heads, SwiGLU hidden 5504
+
+KV cache: forward_cached() decodes one token at a time against cached keys/values. The
+uncached forward() used by training is unchanged.
 """
 import math
 from dataclasses import dataclass
@@ -36,6 +43,12 @@ class BeastConfig:
         return self.dim // self.n_heads
 
 
+PRESETS = {
+    'fast': dict(dim=1024, n_layers=16, n_heads=8, n_kv_heads=4, hidden_dim=2816),
+    'beast': dict(dim=2048, n_layers=22, n_heads=16, n_kv_heads=4, hidden_dim=5504),
+}
+
+
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float):
         super().__init__()
@@ -54,12 +67,12 @@ def rope_tables(head_dim: int, seq_len: int, theta: float):
     return torch.cos(angles), torch.sin(angles)
 
 
-def apply_rope(x, cos, sin):
+def apply_rope(x, cos, sin, pos: int = 0):
     T = x.shape[2]
     half = x.shape[-1] // 2
     x1, x2 = x[..., :half], x[..., half:]
-    c = cos[:T].to(x.dtype)[None, None]
-    s = sin[:T].to(x.dtype)[None, None]
+    c = cos[pos:pos + T].to(x.dtype)[None, None]
+    s = sin[pos:pos + T].to(x.dtype)[None, None]
     return torch.cat([x1 * c - x2 * s, x1 * s + x2 * c], dim=-1)
 
 
@@ -75,20 +88,39 @@ class Attention(nn.Module):
         self.wv = nn.Linear(cfg.dim, cfg.n_kv_heads * self.hd, bias=False)
         self.wo = nn.Linear(cfg.n_heads * self.hd, cfg.dim, bias=False)
 
-    def forward(self, x, cos, sin):
+    def _qkv(self, x, cos, sin, pos: int):
         B, T, _ = x.shape
         q = self.wq(x).view(B, T, self.n_heads, self.hd).transpose(1, 2)
         k = self.wk(x).view(B, T, self.n_kv, self.hd).transpose(1, 2)
         v = self.wv(x).view(B, T, self.n_kv, self.hd).transpose(1, 2)
-        q = apply_rope(q, cos, sin)
-        k = apply_rope(k, cos, sin)
+        return apply_rope(q, cos, sin, pos), apply_rope(k, cos, sin, pos), v
+
+    def _expand(self, t):
         rep = self.n_heads // self.n_kv
-        if rep > 1:
-            k = k.repeat_interleave(rep, dim=1)
-            v = v.repeat_interleave(rep, dim=1)
+        return t.repeat_interleave(rep, dim=1) if rep > 1 else t
+
+    def forward(self, x, cos, sin):
+        B, T, _ = x.shape
+        q, k, v = self._qkv(x, cos, sin, 0)
         y = F.scaled_dot_product_attention(
-            q, k, v, is_causal=True, dropout_p=self.dropout if self.training else 0.0)
+            q, self._expand(k), self._expand(v), is_causal=True,
+            dropout_p=self.dropout if self.training else 0.0)
         return self.wo(y.transpose(1, 2).reshape(B, T, -1))
+
+    def forward_cached(self, x, cos, sin, cache, pos: int):
+        """cache is None or (k, v) with shape (B, n_kv, S_past, hd). Returns (out, new_cache)."""
+        B, T, _ = x.shape
+        q, k, v = self._qkv(x, cos, sin, pos)
+        if cache is not None:
+            k = torch.cat([cache[0], k], dim=2)
+            v = torch.cat([cache[1], v], dim=2)
+        S = k.shape[2]
+        mask = None
+        if T > 1:
+            # query i (absolute position S - T + i) may attend to keys 0..S - T + i
+            mask = torch.ones(T, S, dtype=torch.bool, device=x.device).tril(diagonal=S - T)
+        y = F.scaled_dot_product_attention(q, self._expand(k), self._expand(v), attn_mask=mask)
+        return self.wo(y.transpose(1, 2).reshape(B, T, -1)), (k, v)
 
 
 class SwiGLU(nn.Module):
@@ -115,6 +147,12 @@ class Block(nn.Module):
         x = x + self.drop(self.attn(self.attn_norm(x), cos, sin))
         x = x + self.drop(self.ffn(self.ffn_norm(x)))
         return x
+
+    def forward_cached(self, x, cos, sin, cache, pos: int):
+        a, cache = self.attn.forward_cached(self.attn_norm(x), cos, sin, cache, pos)
+        x = x + a
+        x = x + self.ffn(self.ffn_norm(x))
+        return x, cache
 
 
 class PipBeast(nn.Module):
@@ -158,11 +196,26 @@ class PipBeast(nn.Module):
                                targets.reshape(-1), ignore_index=-1)
         return logits, loss
 
+    def forward_cached(self, idx, caches=None, pos: int = 0):
+        """Incremental forward with a KV cache. idx: (B, T) new tokens starting at absolute
+        position pos. Returns (logits for the last new token as (B, 1, V), list of per-layer caches).
+        Pass caches=None and pos=0 to prefill. Caller must keep pos + T <= max_seq_len."""
+        assert pos + idx.size(1) <= self.cfg.max_seq_len, 'cache overflow: re-prime the cache'
+        if caches is None:
+            caches = [None] * len(self.layers)
+        x = self.tok_emb(idx)
+        new_caches = []
+        for layer, c in zip(self.layers, caches):
+            x, c = layer.forward_cached(x, self.rope_cos, self.rope_sin, c, pos)
+            new_caches.append(c)
+        x = self.norm(x[:, -1:, :])
+        return self.lm_head(x), new_caches
+
     def num_params(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
 
 if __name__ == '__main__':
-    cfg = BeastConfig()
-    n = PipBeast(cfg).num_params()
-    print(f'Pip-Beast parameters: {n:,} ({n / 1e9:.3f}B)')
+    for name, arch in PRESETS.items():
+        n = PipBeast(BeastConfig(**arch)).num_params()
+        print(f'{name}: {n:,} parameters ({n / 1e9:.3f}B), tied embeddings')
