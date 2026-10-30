@@ -1,106 +1,109 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pip-Beast</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>pip-beast</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0a0a0a; --panel:#171717; --line:#262626; --amber:#ffffff; --dim:#737373; --text:#ffffff; }
+  :root { --bg: #000; --fg: #ececec; --mid: #8a8a8a; --dim: #4a4a4a; --line: #242424; --bubble: #141414; }
   * { box-sizing: border-box; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:'JetBrains Mono', ui-monospace, monospace; font-size:14px; }
-  body { display:grid; grid-template-rows:auto 1fr auto; }
-  header { display:flex; justify-content:space-between; align-items:center; padding:12px 18px; border-bottom:1px solid var(--line); }
-  h1 { margin:0; font-size:16px; color:var(--amber); letter-spacing:.18em; }
-  #status { color:var(--dim); font-size:12px; }
-  main { display:grid; grid-template-columns:1fr 260px; min-height:0; }
-  #log { overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:14px; }
-  .msg { white-space:pre-wrap; word-wrap:break-word; border-left:2px solid var(--line); padding:6px 12px; }
-  .msg.you { border-color:var(--dim); color:#a3a3a3; }
-  .msg.pip { border-color:var(--amber); }
-  .msg .who { display:block; color:var(--amber); font-size:11px; letter-spacing:.12em; margin-bottom:4px; }
-  .msg.you .who { color:var(--dim); }
-  aside { border-left:1px solid var(--line); background:var(--panel); padding:18px; display:flex; flex-direction:column; gap:18px; }
-  label { display:block; color:var(--dim); font-size:11px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:6px; }
-  .row { display:flex; justify-content:space-between; align-items:baseline; }
-  .row span { color:var(--amber); font-size:12px; }
-  input[type=range] { width:100%; accent-color:var(--amber); }
-  input[type=checkbox] { accent-color:var(--amber); width:16px; height:16px; }
-  button { background:transparent; color:var(--amber); border:1px solid var(--amber); padding:8px 12px; font:inherit; cursor:pointer; }
-  button:hover { background:var(--amber); color:#0a0a0a; }
-  button:disabled { opacity:.4; cursor:default; }
-  .toggle { display:flex; align-items:center; justify-content:space-between; }
-  .note { color:var(--dim); font-size:11px; line-height:1.5; }
-  footer { display:flex; gap:10px; padding:14px 18px; border-top:1px solid var(--line); }
-  textarea { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--line); padding:10px; font:inherit; resize:none; height:64px; }
-  textarea:focus { outline:1px solid var(--amber); }
-  html { scrollbar-color:#404040 #0a0a0a; scrollbar-width:thin; }
-  ::-webkit-scrollbar { width:10px; height:10px; }
-  ::-webkit-scrollbar-track { background:#0a0a0a; }
-  ::-webkit-scrollbar-thumb { background:#404040; border:2px solid #0a0a0a; }
-  ::-webkit-scrollbar-thumb:hover { background:#737373; }
-  @media (max-width:760px) { main { grid-template-columns:1fr; } aside { border-left:0; border-top:1px solid var(--line); } }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 15px; line-height: 1.5;
+    display: flex; flex-direction: column; height: 100dvh;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  }
+  header h1 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: 0.02em; }
+  #status { font-size: 12px; color: var(--mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #controls { display: flex; gap: 10px; align-items: baseline; font-size: 12px; color: var(--mid); }
+  #controls label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #controls input[type=checkbox] { accent-color: var(--fg); margin: 0; }
+  #reset { background: transparent; color: var(--mid); border: 1px solid var(--line); padding: 2px 8px; font: inherit; font-size: 12px; font-weight: 400; border-radius: 999px; cursor: pointer; }
+  #reset:hover { color: var(--fg); border-color: var(--mid); }
+  #reset:disabled { opacity: .4; cursor: default; }
+  #log {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    max-width: 760px; width: 100%; margin: 0 auto;
+  }
+  .msg { max-width: 82%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.you { align-self: flex-end; background: var(--fg); color: var(--bg); border-bottom-right-radius: 4px; }
+  .msg.pip { align-self: flex-start; background: var(--bubble); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .msg.sys { align-self: center; color: var(--mid); font-size: 13px; }
+  .empty { margin: auto; color: var(--dim); text-align: center; font-size: 14px; }
+  form {
+    border-top: 1px solid var(--line); padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    display: flex; gap: 10px; max-width: 760px; width: 100%; margin: 0 auto;
+  }
+  #input {
+    flex: 1; min-width: 0; background: var(--bg); color: var(--fg);
+    border: 1px solid var(--dim); border-radius: 999px; padding: 10px 16px; font: inherit; outline: none;
+  }
+  #input:focus { border-color: var(--mid); }
+  #input::placeholder { color: var(--dim); }
+  button#send {
+    background: var(--fg); color: var(--bg); border: 0; border-radius: 999px;
+    padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer;
+  }
+  button#send:disabled { background: var(--dim); color: var(--bg); cursor: default; }
+  @media (max-width: 480px) {
+    body { font-size: 14px; }
+    .msg { max-width: 90%; }
+    header, #log, form { padding-left: 14px; padding-right: 14px; }
+    #controls { flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
-<header><h1>PIP-BEAST</h1><span id="status">connecting...</span></header>
-<main>
-  <section id="log"></section>
-  <aside>
-    <div>
-      <div class="row"><label>temperature</label><span id="tempVal"></span></div>
-      <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.8">
-    </div>
-    <div>
-      <div class="row"><label>top-k</label><span id="topkVal"></span></div>
-      <input id="topk" type="range" min="0" max="200" step="1" value="40">
-    </div>
-    <div>
-      <div class="row"><label>max tokens</label><span id="maxVal"></span></div>
-      <input id="maxnew" type="range" min="16" max="1024" step="16" value="200">
-    </div>
-    <div class="toggle">
-      <label style="margin:0">satellites</label>
-      <input id="sat" type="checkbox">
-    </div>
-    <div class="note" id="satNote"></div>
-    <button id="reset">reset conversation</button>
-    <div class="note">Sliders apply to the core model. Satellite replies are produced whole by the orchestrator and then shown in chunks.</div>
-  </aside>
-</main>
-<footer>
-  <textarea id="input" placeholder="message pip... (enter sends, shift+enter for newline)"></textarea>
-  <button id="send">send</button>
-</footer>
+
+<header>
+  <h1>pip-beast</h1>
+  <div id="controls">
+    <span id="status">connecting...</span>
+    <label id="satLabel" title="satellite subsystem"><input id="sat" type="checkbox"> satellites</label>
+    <button id="reset" type="button">reset</button>
+  </div>
+</header>
+
+<div id="log">
+  <div class="empty" id="empty">A 1.11B parameter model running on your local machine. Replies are generated by the server.</div>
+</div>
+
+<form id="form" autocomplete="off">
+  <input id="input" type="text" placeholder="Message Pip" aria-label="Message Pip">
+  <button id="send" type="submit">Send</button>
+</form>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const log = $('log'), input = $('input'), sendBtn = $('send');
+  const logEl = $('log'), form = $('form'), input = $('input'), sendBtn = $('send');
+  const statusEl = $('status'), satEl = $('sat'), resetBtn = $('reset');
+  let emptyEl = $('empty');
   let busy = false;
 
-  const sliders = [['temp', 'tempVal', v => (+v).toFixed(2)], ['topk', 'topkVal', v => v], ['maxnew', 'maxVal', v => v]];
-  for (const [id, out, fmt] of sliders) {
-    const el = $(id), o = $(out);
-    const upd = () => { o.textContent = fmt(el.value); };
-    el.addEventListener('input', upd);
-    upd();
-  }
-
   function addMsg(kind, text) {
+    if (emptyEl) { emptyEl.remove(); emptyEl = null; }
     const div = document.createElement('div');
     div.className = 'msg ' + kind;
-    const who = document.createElement('span');
-    who.className = 'who';
-    who.textContent = kind === 'you' ? 'you' : 'pip';
-    const body = document.createTextNode(text);
-    div.append(who, body);
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
-    return body;
+    div.textContent = text;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+    return div;
   }
 
-  function setBusy(v) { busy = v; sendBtn.disabled = v; }
+  function setBusy(v) {
+    busy = v;
+    sendBtn.disabled = v;
+    resetBtn.disabled = v;
+  }
 
   function handleEvent(block, node) {
     let ev = 'message', data = '';
@@ -125,12 +128,7 @@
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: msg,
-          temperature: +$('temp').value,
-          top_k: +$('topk').value,
-          max_new_tokens: +$('maxnew').value,
-        }),
+        body: JSON.stringify({ message: msg, temperature: 0.8, top_k: 40, max_new_tokens: 200 }),
       });
       if (!res.ok) { node.textContent = '[HTTP ' + res.status + ']'; return; }
       const reader = res.body.getReader();
@@ -145,7 +143,7 @@
           const block = buf.slice(0, i);
           buf = buf.slice(i + 2);
           handleEvent(block, node);
-          log.scrollTop = log.scrollHeight;
+          logEl.scrollTop = logEl.scrollHeight;
         }
       }
     } catch (e) {
@@ -159,17 +157,16 @@
   async function loadStatus() {
     try {
       const s = await (await fetch('/api/status')).json();
-      $('status').textContent = `${s.model} | ${(s.params / 1e6).toFixed(0)}M params | ${s.device} | ctx ${s.context}`;
-      $('sat').disabled = !s.satellites_available;
-      $('sat').checked = s.satellites_on;
-      $('satNote').textContent = s.satellites_available ? '' :
-        ('satellites unavailable' + (s.satellite_error ? ': ' + s.satellite_error : ''));
+      statusEl.textContent = `${s.model} | ${(s.params / 1e6).toFixed(0)}M params | ${s.device} | ctx ${s.context}`;
+      satEl.disabled = !s.satellites_available;
+      satEl.checked = s.satellites_on;
+      if (!s.satellites_available && s.satellite_error) satEl.title = 'unavailable: ' + s.satellite_error;
     } catch (e) {
-      $('status').textContent = 'server unreachable';
+      statusEl.textContent = 'server unreachable';
     }
   }
 
-  $('sat').addEventListener('change', async (e) => {
+  satEl.addEventListener('change', async (e) => {
     const res = await fetch('/api/satellites', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -179,13 +176,15 @@
     loadStatus();
   });
 
-  $('reset').addEventListener('click', async () => {
+  resetBtn.addEventListener('click', async () => {
     if (busy) return;
     await fetch('/api/reset', { method: 'POST' });
-    log.textContent = '';
+    logEl.textContent = '';
+    emptyEl = null;
+    addMsg('sys', 'chat cleared');
   });
 
-  sendBtn.addEventListener('click', send);
+  form.addEventListener('submit', (e) => { e.preventDefault(); send(); });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
